@@ -106,7 +106,7 @@ def write_stl(m, path):
 def _fmt_mesh(m):
     V = np.asarray(m.vertices)
     F = np.asarray(m.faces)
-    vs = "\n".join('<vertex x="%.4f" y="%.4f" z="%.4f"/>' % tuple(r) for r in V.tolist())
+    vs = "\n".join('<vertex x="%.6f" y="%.6f" z="%.6f"/>' % tuple(r) for r in V.tolist())
     ts = "\n".join('<triangle v1="%d" v2="%d" v3="%d"/>' % tuple(r) for r in F.tolist())
     return f"<mesh><vertices>\n{vs}\n</vertices><triangles>\n{ts}\n</triangles></mesh>"
 
