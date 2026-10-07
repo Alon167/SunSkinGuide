@@ -1,6 +1,6 @@
 # Muscular teddy-bear boxer – 3D-printable (P1S, 0.4 mm nozzle, PLA)
 
-**Built:** a 200 mm plush-style boxer bear (SDF-modelled in Python): fur-textured brown body/legs, smooth glossy red gloves
+**Built:** a 200 mm plush-style boxer bear (SDF-modelled in Python, revision 2: rounded/organic masses, relaxed forward boxer pose): plush-tuft-textured brown body/legs, smooth glossy red gloves
 and black shorts, separate cream muzzle / black nose / black eyes with white highlight pins, optional Ø96 base.
 All structural joints are hidden short split-snap pins (printed in the part itself). Fur = real 0.35–0.6 mm bumps (FUR_STRENGTH).
 Face is deliberately softer than the reference: brows ~10° slant, eyes fully visible, almost straight mouth.
@@ -12,7 +12,7 @@ Regenerate everything: `pip install numpy scipy scikit-image trimesh manifold3d 
 ## Parts (STL files are already in print orientation)
 | # | file | colour | qty | orientation | supports |
 |---|------|--------|-----|-------------|----------|
-| 01 | clearance_X/01_body_brown | brown | 1 | lying on its BACK, face up (pins horizontal = strongest) | yes, on the back/arm undersides only (hidden); face & chest support-free |
+| 01 | clearance_X/01_body_brown | brown | 1 | reclined on its back (rotated 65° about X from upright, STL already posed): face/chest face up, torso pin 25° and wrist pins ~29° off horizontal | yes, tree supports on the back and under the upper arms/forearms (≈8,300 mm² flagged, mostly hidden back); face, chest, abs support-free |
 | 02 | common/02_muzzle_cream | cream | 1 | flat back down | no |
 | 03 | common/03_nose_black | black | 1 | flat back down | no |
 | 04 | common/04_eye_black | black | 2 (+2 spare) | flat plug down, dome up | no |
@@ -42,4 +42,7 @@ folder `clearance_0.10`, `clearance_0.15` or `clearance_0.20` (nearest value; re
 
 ## Notes
 * `assembled_preview.stl` = whole figure for viewing only. `build_report.json` has the automatic checks (see DECISIONS.md).
+* Pose: upper arms hang ~16° outward, elbows bent ~36°, forearms/gloves point forward-down; gloves sit ~17 mm in front of the chest and ~15 mm from the shorts.
+* Fur: plush tufts (3–4 merged bumps, 0.5–0.7 mm high, ≥0.86 mm wide) flowing downward (face: outward). `--fur 0` = smooth.
+* Version 1 renders are kept in `output_v1_renders/`; comparison sheets against reference.png are `output/renders/compare_*.png`.
 * Renders: `output/renders/` (4 views + 45° views, face, fur, exploded).

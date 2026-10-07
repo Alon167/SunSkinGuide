@@ -118,7 +118,7 @@ def main():
     # ----------------------------------------------------- print poses
     poses = {}
     notes = {}
-    T_body, nb = E.pose_for("body", body)
+    T_body, nb = E.pose_for("body", body, J)
     poses["body"] = T_body
     notes["body"] = nb
     ref = variants[clrs[min(1, len(clrs) - 1)]]
@@ -228,6 +228,9 @@ def main():
         log("renders")
         rdir = os.path.join(out, "renders")
         RN.make_renders([dict(p, mesh=scaled(p["mesh"])) for p in asm], rdir)
+        scaled_asm = [dict(p, mesh=scaled(p['mesh'])) for p in asm]
+        RN.make_glove_closeups(scaled_asm, rdir)
+        RN.make_comparisons(os.path.join(ROOT, 'reference.png'), rdir)
         ex = explode_vectors(J, face, info)
         for p in asm:
             p["explode"] = ex.get(p["name"], np.zeros(3))
@@ -296,6 +299,42 @@ def validate(P, asm, J, v, body, fp, info, face):
     res["com_inside_support_polygon"] = bool(inside)
     res["com_margin_to_edge_mm"] = round(float(dmin), 2)
     res["watertight"] = {p["name"]: bool(p["mesh"].is_watertight) for p in asm}
+    # ---- shape checklist (revision round)
+    mm = {p["name"]: p["mesh"] for p in asm}
+    chk = {}
+    # gloves in front of the body / spacing from the shorts
+    torso_front = float(mm["body"].vertices[(np.abs(mm["body"].vertices[:, 0]) < 22) & (mm["body"].vertices[:, 2] > 90) & (mm["body"].vertices[:, 2] < 125)][:, 1].min())
+    for nm, sg in (("gloveL", "shorts"), ("gloveR", "shorts")):
+        gm = mm[nm]
+        chk[nm + "_centre_in_front_of_chest_mm"] = round(torso_front - float(gm.centroid[1]), 1)
+        chk[nm + "_gap_to_shorts_mm"] = round(float(mans[nm].min_gap(mans[sg], 20.0)), 1)
+        chk[nm + "_centre_z"] = round(float(gm.centroid[2]), 1)
+        chk[nm + "_glove_front_tip_y"] = round(float(gm.bounds[0, 1]), 1)
+    # V taper from the arm-less torso SDF
+    from bear.sdfkit import Program as _P
+    tp = D.body_program(face, arms=False)
+    def width(z):
+        xs = np.linspace(0, 80, 321)
+        pts = np.stack([xs, np.full_like(xs, -1.0), np.full_like(xs, z)], 1)
+        d = tp.eval(pts)
+        return 2 * float(xs[d <= 0].max())
+    chk["torso_width_shoulders_z125"] = round(width(125.0), 1)
+    chk["torso_width_chest_z112"] = round(width(112.0), 1)
+    chk["torso_width_waist_z82"] = round(width(82.0), 1)
+    chk["V_ratio_shoulder_to_waist"] = round(width(125.0) / width(82.0), 2)
+    # flat / boxy check: largest coplanar facets (mm2) per part (cut faces excluded by area rule)
+    flat = {}
+    for nm in ("body", "legL", "legR", "shorts", "gloveL", "gloveR"):
+        m = mm[nm]
+        try:
+            fa = sorted([float(m.area_faces[f].sum()) for f in m.facets], reverse=True)[:3]
+        except Exception:
+            fa = []
+        flat[nm] = [round(x) for x in fa]
+    chk["largest_planar_facets_mm2"] = flat
+    chk["mesh_defects"] = {nm: dict(winding_consistent=bool(mm[nm].is_winding_consistent), volume_positive=bool(mm[nm].volume > 0),
+                                    degenerate_faces=int((mm[nm].area_faces < 1e-10).sum())) for nm in ("body", "shorts", "gloveL", "legL")}
+    res["shape_checklist"] = chk
     log("validation:", json.dumps({k_: v_ for k_, v_ in res.items() if k_ != "watertight"}))
     return res
 

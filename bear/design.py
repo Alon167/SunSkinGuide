@@ -5,10 +5,12 @@ from .sdfkit import Program, frame, rot_axes, UNION, SUB, INTER
 
 Z_WAIST = 80.0          # waistband top == torso cut plane
 Z_HEM = 45.0            # shorts bottom == leg top plane
-LEG_X = 20.0
+LEG_X = 22.0
 FOOT_TOE_DEG = 12.0
 HEAD_C = np.array([0.0, -4.0, 165.5])
 S2 = (1, -1)
+UPPER_ARM_LEN = 22.0
+FOREARM_LEN = 27.0
 
 
 def unit(v):
@@ -18,16 +20,24 @@ def unit(v):
 
 # --------------------------------------------------------------- geometry
 def arm_points(s):
-    S = np.array([s * 47.0, 0.0, 123.0])
-    E = np.array([s * 54.0, -2.0, 105.0])
-    W = np.array([s * 58.5, -6.0, 90.5])
-    g = unit(W - E)
+    """shoulder, elbow, wrist, forearm axis.  Relaxed boxer stance: upper arm hangs
+    down/outward (~17 deg), elbow bent ~40 deg so the forearm points forward-down."""
+    S = np.array([s * 46.5, -2.0, 123.0])
+    u = unit((s * 0.26, -0.30, -0.92))
+    E = S + UPPER_ARM_LEN * u
+    g = unit((s * 0.10, -0.80, -0.59))
+    W = E + FOREARM_LEN * g
     return S, E, W, g
 
 
 def glove_frame(s):
+    """rows: x = up-ish, y = towards the body centre line (palm side), z = cuff axis."""
     S, E, W, g = arm_points(s)
-    M = frame(g, hint=(0, -1, 0))      # rows: x(front), y, z=g
+    inward = np.array([-s, 0.0, 0.0])
+    ey = unit(inward - g * (inward @ g))
+    ex = unit(np.array([0, 0, 1.0]) - g * g[2])
+    ez = g
+    M = np.stack([ex, ey, ez])
     return W, M
 
 
@@ -73,11 +83,11 @@ def add_polyline(p, ref, pts, r, height, k=2.0):
 
 # ------------------------------------------------------------------- head
 def add_head(p):
-    p.ell(HEAD_C, (40.0, 34.5, 30.0), k=3)
+    p.ell(HEAD_C, (41.0, 35.0, 30.5), k=3)
     for s in S2:
-        p.ell((s * 26.5, -13.0, 157.0), (15.0, 19.0, 13.5), k=9)   # plush cheeks
-    p.ell((0, -15.0, 147.5), (21.0, 17.0, 9.5), k=8)                # chin / jaw
-    p.ell((0, 6.0, 161.0), (35.0, 26.0, 26.0), k=6)                 # back of head
+        p.ell((s * 28.0, -12.0, 154.0), (16.5, 20.0, 15.0), k=10)   # plush cheeks, low and wide
+    p.ell((0, -12.0, 148.0), (26.0, 22.0, 11.5), k=10)               # round jaw (no flat underside)
+    p.ell((0, 6.0, 161.0), (36.0, 27.0, 27.0), k=8)                 # back of head
     for s in S2:
         EC, n_e = ear_geom(s)
         p.ell(EC, EAR_R, M=frame(n_e, hint=(0, 0, 1)), k=2.5)
@@ -134,81 +144,84 @@ def face_layout(head):
 
 
 # ------------------------------------------------------------------- body
-def body_program(face):
-    """Head + upper torso + arms down to the wrist cut planes."""
+def _perp(v, ref):
+    v = unit(v)
+    r = np.asarray(ref, float)
+    return unit(r - v * (r @ v))
+
+
+def body_program(face, arms=True):
+    """Head + upper torso + arms down to the wrist cut planes (all rounded masses)."""
     p = Program()
     add_head(p)
-    # ------- torso masses
-    p.ell((0, 0, 138.0), (24, 16, 10), k=6)                         # trap mass / neck
-    p.ell((0, 0, 113.0), (39.5, 27.0, 27.5), k=6)                   # ribcage
-    p.ell((0, -1, 90.0), (31.0, 22.5, 16.0), k=6)                   # abdomen
+    # ------- torso masses (big blends)
+    p.ell((0, 1, 140.0), (32.0, 21.0, 13.0), k=10)                  # trapezius mass, carries the head
+    p.ell((0, -12.0, 141.0), (29.0, 16.0, 10.5), k=9)               # fills under the chin: no ledge
+    p.ell((0, 0, 114.0), (41.0, 27.5, 28.0), k=8)                   # ribcage / chest
+    p.ell((0, -1, 91.0), (27.5, 21.0, 16.5), k=8)                   # abdomen (narrow waist -> V taper)
     for s in S2:
-        p.ell((s * 31.5, 9.5, 108.0), (12.0, 13.0, 23.0), M=rot_axes(0, 0, s * 9), k=5)   # lats
-        p.ell((s * 29.5, -5.0, 90.0), (7.5, 15.0, 13.0), M=rot_axes(0, 0, -s * 10), k=4)  # obliques
-        p.ell((s * 18.0, -18.0, 117.5), (18.5, 10.0, 12.5), M=rot_axes(0, -s * 7, 0), k=2.5)  # pecs
-        p.cap((s * 6, 4, 142), (s * 37, 1, 128), 9.5, 8.0, k=6)     # trapezius
-        p.ell((s * 17, 19.5, 120.0), (12.5, 7.0, 11.0), M=rot_axes(0, s * 12, 0), k=4)  # shoulder blades
-        p.cap((s * 6.0, 19.0, 83), (s * 7.0, 21.0, 108), 5.0, 5.5, k=4)   # erector ridges
-        # abs: 3 rows x 2
-        for z in (100.5, 91.7, 83.0):
-            p.rbox((s * 9.4, -19.6, z), (8.3, 4.2, 4.1), 3.0, k=1.8)
-    # arms
-    for s in S2:
-        S, E, W, g = arm_points(s)
-        p.ell(S + np.array([-s * 1.5, 0.0, 0]), (16.0, 16.0, 15.5), k=5)         # deltoid
-        p.cap(S, E, 13.0, 11.8, k=4)                                             # upper arm
-        p.ell((s * 50.5, -6.5, 113.5), (9.5, 9.5, 12.5), M=rot_axes(0, s * 4, 0), k=3)   # biceps
-        p.ell((s * 52.5, 6.5, 112.5), (9.0, 9.0, 13.5), M=rot_axes(0, s * 4, 0), k=3)    # triceps
-        p.ell(E, (12.0, 12.0, 11.5), k=3)                                        # elbow
-        p.cap(E, W, 12.2, 10.4, k=3)                                              # forearm
-        p.ell(E * 0.45 + W * 0.55 + np.array([s * 0.5, -1.0, 0]), (11.6, 11.3, 12.5),
-              M=frame(g, hint=(1, 0, 0)).T.T, k=3)                               # forearm belly
+        p.ell((s * 30.0, 10.0, 108.0), (12.5, 13.5, 23.0), M=rot_axes(0, 0, s * 14), k=6)    # flared lats
+        p.ell((s * 25.5, -4.0, 90.5), (8.5, 14.0, 13.0), M=rot_axes(0, 0, -s * 8), k=4)      # obliques
+        p.ell((s * 18.5, -18.5, 118.0), (20.5, 11.5, 14.0), M=rot_axes(0, -s * 8, 0), k=3.5)  # pecs
+        p.cap((s * 8, 3, 145), (s * 40, 1, 130), 11.0, 9.5, k=9)    # trapezius slope head -> shoulder
+        p.ell((s * 17, 19.5, 120.0), (12.5, 7.0, 11.0), M=rot_axes(0, s * 12, 0), k=4)       # shoulder blades
+        p.cap((s * 6.0, 19.0, 83), (s * 7.0, 21.0, 108), 5.0, 5.5, k=4)                       # erectors
+        for z in (100.5, 91.8, 83.2):                                                         # abs pillows
+            p.ell((s * 9.2, -19.6, z), (8.4, 5.6, 4.8), k=2.4)
+    # ------- arms
+    if arms:
+        for s in S2:
+            S, E, W, g = arm_points(s)
+            u = unit(E - S)
+            Mu = frame(u, hint=(1, 0, 0))
+            front = _perp(u, (0, -1, 0))
+            back = -front
+            p.ell(S + np.array([0.0, 0.0, 2.0]), (18.5, 17.8, 17.8), k=6)             # cannonball deltoid
+            p.cap(S, E, 14.2, 12.8, k=4)                                               # upper arm
+            p.ell((S + E) / 2 + front * 4.5, (10.8, 10.8, 13.0), M=Mu, k=3.5)             # biceps
+            p.ell((S + E) / 2 + back * 5.5 + np.array([s * 1.5, 0, 0]), (10.2, 10.2, 14.0), M=Mu, k=3.5)  # triceps
+            p.ell(E, (13.4, 13.4, 12.8), k=3.5)                                         # elbow
+            p.cap(E, W, 13.4, 11.2, k=3)                                                # forearm taper
+            Mg = frame(g, hint=(1, 0, 0))
+            p.ell(E + g * 7.5, (13.0, 12.6, 13.0), M=Mg, k=3.5)                         # forearm belly
     # ------- cut planes
     p.plane((0, 0, -1), -Z_WAIST, op=INTER, k=0)       # keep z >= waist
-    for s in S2:
-        S, E, W, g = arm_points(s)
-        p.plane(g, float(g @ W), op=INTER, k=0)       # keep points before wrist plane
+    if arms:
+        for s in S2:
+            S, E, W, g = arm_points(s)
+            p.plane(g, float(g @ W), op=INTER, k=0)    # keep points before the wrist plane
     ref = Program()
     ref.rows = list(p.rows)
-    # ------- grooves & facial sculpting (subtract / add)
     front = (0, 1, 0)
     back = (0, -1, 0)
     # linea alba
     pts = surf_pts(ref, [((0, -120, z), front) for z in np.arange(80.5, 106.5, 3.0)])
-    carve_polyline(p, ref, pts, 1.0, 0.9, k=0.8)
-    # ab rows
-    for zg in (96.0, 87.2):
-        xs = np.linspace(-17, 17, 10)
-        pts = surf_pts(ref, [((x, -120, zg + 0.012 * x * x - 1.5), front) for x in xs])
-        carve_polyline(p, ref, pts, 1.0, 1.1, k=0.6)
+    carve_tapered(p, ref, pts, np.full(len(pts), 1.1), np.r_[0.4, np.full(len(pts) - 2, 1.0), 0.3], k=1.2)
+    # soft ab-row grooves
+    for zg in (96.2, 87.4):
+        xs = np.linspace(-16, 16, 9)
+        pts = surf_pts(ref, [((x, -120, zg + 0.012 * x * x - 1.4), front) for x in xs])
+        carve_tapered(p, ref, pts, np.full(len(pts), 1.3), np.r_[0.3, np.full(len(pts) - 2, 1.0), 0.3], k=1.4)
     # pec centre + lower pec line
     pts = surf_pts(ref, [((0, -120, z), front) for z in np.arange(106.0, 128.0, 3.0)])
-    carve_polyline(p, ref, pts, 1.0, 1.2, k=0.6)
+    carve_tapered(p, ref, pts, np.full(len(pts), 1.1), np.r_[0.3, np.full(len(pts) - 2, 1.3), 0.3], k=1.2)
     for s in S2:
         xs = np.linspace(2.5, 33, 10)
         pts = surf_pts(ref, [((s * x, -120, 105.2 + 0.0055 * x * x), front) for x in xs])
-        carve_polyline(p, ref, pts, 1.0, 1.2, k=0.8)
-        # oblique / serratus lines
-        for i, z0 in enumerate((92, 99)):
+        carve_tapered(p, ref, pts, np.full(len(pts), 1.3), np.r_[0.3, np.full(len(pts) - 2, 1.3), 0.3], k=1.6)
+        for z0 in (92, 99):
             pts = surf_pts(ref, [((s * (25 + 2.5 * t), -120, z0 + 3.0 * t), front) for t in range(5)])
-            carve_polyline(p, ref, pts, 0.8, 0.8, k=0.6)
-    # spine groove + scapula/trap lines
+            carve_tapered(p, ref, pts, [0.7, 1.0, 1.0, 1.0, 0.7], [0.0, 0.6, 0.8, 0.6, 0.0], k=1.2)
+    # spine groove + scapula / lat lines
     pts = surf_pts(ref, [((0, 120, z), back) for z in np.arange(82, 140, 3.0)])
-    carve_polyline(p, ref, pts, 1.3, 1.4, k=0.8)
+    carve_tapered(p, ref, pts, np.full(len(pts), 1.5), np.r_[0.3, np.full(len(pts) - 2, 1.4), 0.3], k=1.2)
     for s in S2:
-        # scapula lower edge + lat edge grooves
         xs = np.linspace(6, 27, 7)
         pts = surf_pts(ref, [((s * x, 120, 113.0 + 0.30 * (x - 6)), back) for x in xs])
-        carve_tapered(p, ref, pts, [0.6, 1.0, 1.1, 1.1, 1.1, 1.0, 0.6], [0.0, 0.8, 1.0, 1.0, 1.0, 0.8, 0.0], k=0.8)
+        carve_tapered(p, ref, pts, [0.7, 1.1, 1.2, 1.2, 1.2, 1.1, 0.7], [0.0, 0.8, 1.0, 1.0, 1.0, 0.8, 0.0], k=1.2)
         zs = np.linspace(106, 84, 7)
-        pts = surf_pts(ref, [((s * (38.5 - 0.55 * (106 - z)), 120, z), back) for z in zs])
-        carve_tapered(p, ref, pts, [0.6, 1.0, 1.2, 1.2, 1.1, 1.0, 0.6], [0.0, 0.7, 0.9, 0.9, 0.9, 0.6, 0.0], k=0.8)
-    # deltoid / arm separation grooves
-    for s in S2:
-        S, E, W, g = arm_points(s)
-        for z0, zr in ((117.0, 4.0),):
-            pts = surf_pts(ref, [((s * (x), -120, z0 - 0.5 * (x - 36)), front) for x in np.linspace(37, 55, 6)])
-        # biceps/triceps split
+        pts = surf_pts(ref, [((s * (38.0 - 0.5 * (106 - z)), 120, z), back) for z in zs])
+        carve_tapered(p, ref, pts, [0.7, 1.1, 1.3, 1.3, 1.2, 1.1, 0.7], [0.0, 0.7, 0.9, 0.9, 0.9, 0.6, 0.0], k=1.2)
     # ears: inner bowl
     for s in S2:
         EC, n_e = ear_geom(s)
@@ -217,7 +230,6 @@ def body_program(face):
     # brows
     for s in S2:
         pts = face["brows"][s]
-        # slightly sunk capsule chain gives a soft ridge
         n = ref.grad(pts)
         n /= np.linalg.norm(n, axis=1, keepdims=True)
         c = pts - n * 0.5
@@ -229,7 +241,6 @@ def body_program(face):
     c = pts + n * 0.1
     for a, b in zip(c[:-1], c[1:]):
         p.cap(a, b, 0.9, 0.9, op=SUB, k=0.8)
-    # eye dishes (shallow, smooth)  -- region carve: cylinder AND outside offset(-0.5)
     for s in S2:
         e = face["eyes"][s]
         _dish(p, e["S"], e["a"], 7.3, 0.55)
@@ -256,74 +267,70 @@ def foot_frame(s):
 def leg_program(s):
     p = Program()
     pivot, M = foot_frame(s)
-    R = M.T                               # local->world
+    R = M.T
 
-    def L(v):                              # local offset -> world
+    def L(v):
         return pivot + R @ np.asarray(v, float)
 
-    # foot
-    p.rbox(L((0, -7.5, 7.0)), (15.8, 22.8, 8.0), 7.0, M=M, k=3)
-    p.ell(L((0, 6.0, 11.5)), (13.0, 11.5, 8.5), M=M, k=5)                   # heel / ankle
-    toes_x = (-11.6, -3.9, 3.9, 11.6)
-    toes_y = (-23.0, -25.0, -25.0, -23.0)
-    for tx, ty in zip(toes_x, toes_y):
-        p.ell(L((tx, ty + 2.0, 6.5)), (4.7, 6.2, 5.6), M=M, k=1.5)
-    # leg
-    p.cap((s * LEG_X, 2.0, 13.5), (s * LEG_X, 0.5, 47.0), 14.0, 17.2, k=4)
-    p.ell((s * LEG_X, 6.0, 28.0), (13.5, 11.5, 13.5), k=4)                   # calf
-    p.ell((s * LEG_X, -7.0, 37.0), (11.0, 7.0, 8.5), k=4)                   # thigh front
-    p.plane((0, 0, -1), 0.0, op=INTER, k=0)                                 # flat sole z>=0
-    p.plane((0, 0, 1), Z_HEM, op=INTER, k=0)                                # leg top
+    # plush paw: big rounded pad + 4 toe bumps
+    p.ell(L((0, -7.0, 7.5)), (16.4, 23.0, 10.5), M=M, k=3)
+    p.ell(L((0, 5.0, 13.0)), (14.5, 13.0, 9.5), M=M, k=6)                    # heel / ankle
+    toes_x = (-11.4, -3.8, 3.8, 11.4)
+    toes_y = (-23.0, -25.8, -25.8, -23.0)
+    toes_r = ((4.9, 6.3, 5.8), (5.0, 6.5, 6.2), (5.0, 6.5, 6.2), (4.9, 6.3, 5.8))
+    for tx, ty, tr in zip(toes_x, toes_y, toes_r):
+        p.ell(L((tx, ty + 1.2, 6.8)), tr, M=M, k=2.0)
+    # chunky leg, tapering to the ankle
+    p.cap((s * LEG_X, 2.0, 12.0), (s * LEG_X, 0.5, 47.0), 14.8, 19.6, k=7)
+    p.ell((s * LEG_X, 6.5, 28.0), (15.5, 12.5, 14.5), k=7)                    # calf
+    p.ell((s * LEG_X, -6.5, 38.0), (15.8, 10.5, 10.5), k=7)                   # thigh front
+    p.plane((0, 0, -1), 0.0, op=INTER, k=0)                                   # flat sole z>=0
+    p.plane((0, 0, 1), Z_HEM, op=INTER, k=0)                                  # leg top
     ref = Program()
     ref.rows = list(p.rows)
-    # toe grooves (3)
-    for tx in (-7.75, 0.0, 7.75):
-        a = L((tx, -34, 12.5))
-        b = L((tx, -17, 12.8))
-        c = L((tx, -22, 4.0))
-        p.cap(a, b, 0.85, 0.85, op=SUB, k=0.5)
-        p.cap(L((tx, -31, 12.0)), L((tx, -29, 2.5)), 0.85, 0.85, op=SUB, k=0.5)
+    for tx in (-7.6, 0.0, 7.6):                                               # 3 toe grooves
+        p.cap(L((tx, -33.0, 11.5)), L((tx, -20.5, 12.5)), 1.2, 1.2, op=SUB, k=1.2)
+        p.cap(L((tx, -31.5, 11.0)), L((tx, -29.0, 3.5)), 1.2, 1.2, op=SUB, k=1.2)
     return p
 
 
 # ------------------------------------------------------------------ shorts
 def shorts_program():
     p = Program()
-    # hip block + leg tubes
-    p.ecyl((0, 0, 62.5), 34.5, 25.5, 13.0, 6.0, k=3)
+    # hips: wide ellipsoid, legs flare out towards the hems
+    p.ell((0, 0, 64.0), (42.0, 29.0, 19.0), k=6)
     for s in S2:
-        p.cap((s * LEG_X, 0.5, 72.0), (s * LEG_X, 0.5, 47.0), 19.4, 20.4, k=5)
-    # waistband (ribbed)
-    p.ecyl((0, 0, 75.5), 35.5, 26.5, 4.5, 2.0, k=1.0)
-    p.plane((0, 0, 1), Z_WAIST, op=INTER, k=0)       # keep z <= waist top
-    p.plane((0, 0, -1), -Z_HEM, op=INTER, k=0)       # keep z >= hem plane
+        p.cap((s * LEG_X, 0.5, 70.0), (s * LEG_X, 0.5, 47.0), 17.4, 24.0, k=8)
+    # thick waistband with three rounded ribs
+    p.ecyl((0, 0, 75.4), 36.6, 27.0, 4.6, 2.0, k=1.5)
+    for z in (72.4, 75.4, 78.3):
+        p.ering((0, 0, z), 37.0, 27.4, 1.75, k=0.6)
+    # inverted-V split between the legs
+    p.ell((0, 0, 41.0), (5.8, 40.0, 10.5), op=SUB, k=2.5)
+    p.plane((0, 0, 1), Z_WAIST, op=INTER, k=0)
+    p.plane((0, 0, -1), -Z_HEM, op=INTER, k=0)
     ref = Program()
     ref.rows = list(p.rows)
-    # rolled hems
-    for s in S2:
-        p.ering((s * LEG_X, 0.5, Z_HEM + 1.3), 20.2, 20.2, 1.35, k=0.8)
-    # waistband rib grooves
-    for z in (74.0, 77.0):
-        p.ering((0, 0, z), 35.6, 26.6, 0.55, op=SUB, k=0.2)
-    # fabric gathers under the waistband (soft, tapered)
+    for s in S2:   # rolled hems
+        p.ering((s * LEG_X, 0.5, Z_HEM + 1.4), 24.3, 24.3, 1.4, k=1.0)
+    # broad, very shallow fabric waves under the waistband (smooth, no sharp dents)
     rng = np.random.default_rng(3)
-    angs = np.linspace(0, 2 * math.pi, 18, endpoint=False) + rng.normal(0, 0.07, 18)
+    angs = np.linspace(0, 2 * math.pi, 9, endpoint=False) + rng.normal(0, 0.1, 9)
     for th in angs:
         d = (-math.cos(th), -math.sin(th), 0)
-        zs = [70.6, 67.6, 64.0 - rng.uniform(0, 2.5)]
-        pts = []
-        for z in zs:
-            o = np.array([math.cos(th) * 80, math.sin(th) * 60, z])
-            q = ref.raymarch(o, d)
-            if q is not None:
-                pts.append(q)
-        if len(pts) == 3:
-            carve_tapered(p, ref, np.array(pts), [0.7, 1.7, 1.0], [0.0, 0.42, 0.0], k=1.8)
+        zc = 63.5 + rng.uniform(-1.5, 1.5)
+        o = np.array([math.cos(th) * 80, math.sin(th) * 60, zc])
+        q = ref.raymarch(o, d)
+        if q is None:
+            continue
+        n = ref.grad(q[None])[0]
+        n /= np.linalg.norm(n)
+        r = 6.0
+        p.ell(q + n * (r - 0.35), (r, r, rng.uniform(9.0, 12.0)), op=SUB, k=8.0)
     for s in S2:
-        # outer-side hem slit
-        q = ref.raymarch((s * 80, 0.5, 49.0), (-s, 0, 0))
+        q = ref.raymarch((s * 80, 0.5, 49.0), (-s, 0, 0))     # outer hem notch
         if q is not None:
-            p.rbox((q[0], q[1], Z_HEM + 3.5), (3.5, 0.65, 4.8), 0.3, op=SUB, k=0.1)
+            p.ell((q[0] - s * 0.5, q[1], Z_HEM + 3.8), (3.2, 0.7, 4.8), op=SUB, k=0.1)
     p.plane((0, 0, 1), Z_WAIST, op=INTER, k=0)
     p.plane((0, 0, -1), -Z_HEM, op=INTER, k=0)
     return p
@@ -331,6 +338,7 @@ def shorts_program():
 
 # ------------------------------------------------------------------ gloves
 def glove_program(s):
+    """Smooth puffy glove, local frame: x up, y palm side (towards body), z cuff axis."""
     W, M = glove_frame(s)
     R = M.T
 
@@ -339,56 +347,46 @@ def glove_program(s):
 
     p = Program()
     ex, ey, g = M[0], M[1], M[2]
-    inner = s                                   # local-y sign towards the body
-    # cuff
-    p.cap(Lg((0, 0, -3.0)), Lg((0, 0, 13.5)), 12.6, 12.6, k=1.0)
-    # body (puffy)
-    p.rbox(Lg((0.5, 0, 27.0)), (13.8, 15.2, 13.0), 8.5, M=M, k=4)
-    p.ell(Lg((1.5, 0, 26.5)), (15.0, 16.0, 14.2), M=M, k=4)
-    p.ell(Lg((5.0, 0, 31.0)), (11.0, 14.0, 9.5), M=M, k=3)                  # knuckle bulge
-    # thumb: capsule hugging the body on the inner-front side
-    ta, tb = Lg((6.0, inner * 12.2, 17.5)), Lg((7.5, inner * 10.5, 33.0))
-    p.cap(ta, tb, 5.4, 5.0, k=1.5)
-    p.plane(-g, float(-g @ W), op=INTER, k=0)          # flat top (wrist) plane
+    p.cap(Lg((0, 0, -3.0)), Lg((0, 0, 13.5)), 13.6, 13.6, k=1.0)                # thick cuff band
+    p.ell(Lg((1.0, -0.5, 28.0)), (20.0, 18.5, 16.5), M=M, k=5)                  # main puff
+    p.ell(Lg((2.0, -1.5, 32.5)), (19.0, 18.0, 12.5), M=M, k=5)                  # knuckle / fist end
+    p.ell(Lg((2.5, -3.5, 22.0)), (15.5, 15.5, 11.0), M=M, k=5)                  # back-of-hand fullness
+    ta, tb = Lg((9.5, 14.0, 16.0)), Lg((12.0, 10.0, 35.0))                        # ONE thumb, upper inner side
+    p.cap(ta, tb, 7.0, 6.0, k=2.5)
+    p.plane(-g, float(-g @ W), op=INTER, k=0)
     ref = Program()
     ref.rows = list(p.rows)
-    # cuff / body seam ring
-    p.torus(Lg((0, 0, 13.0)), 12.7, 0.6, M=M, op=SUB, k=0.2)
-    # thumb seam: polyline around thumb outline on glove body
-    t = np.linspace(0, 1, 9)
-    axis_pts = np.array([ta + (tb - ta) * ti for ti in t])
-    side = ex * 1.0
-    seam = []
-    for q in axis_pts:
-        o = q + ex * 14.0 + ey * inner * 0.0
-        # march from outside toward the thumb axis
-        r = ref.raymarch(q + ex * 16, -ex)
-        if r is not None:
-            seam.append(r)
-    if len(seam) > 1:
-        carve_polyline(p, ref, np.array(seam), 0.55, 0.5, k=0.3)
-    # panel seams (top/side)
-    for sgn in (1, -1):
-        pts = []
-        for th in np.linspace(-0.3, 1.2, 8):
-            o = Lg((14 * math.cos(th) + 2, sgn * 18 * math.sin(th), 40.0 + 6))
-            q = ref.raymarch(Lg((2 + 30 * math.cos(th), sgn * 30 * math.sin(th) * 1.0, 33.0 + 3 * th)),
-                             -(ex * math.cos(th) + ey * sgn * math.sin(th)))
-            if q is not None:
-                pts.append(q)
-        if len(pts) > 1:
-            carve_polyline(p, ref, np.array(pts), 0.5, 0.45, k=0.3)
-    # compression wrinkles near knuckles
-    for i, off in enumerate((-8, -2.5, 3.0, 8.5)):
-        q1 = ref.raymarch(Lg((20, off * 1.4, 33.5)), -ex)
-        q2 = ref.raymarch(Lg((20, off * 1.4 + 0.8, 40.0)), -ex)
-        if q1 is not None and q2 is not None:
-            carve_polyline(p, ref, np.array([q1, q2]), 0.7, 0.4, k=0.5)
-    for yy in (-6.0, 6.0):
-        q1 = ref.raymarch(Lg((20, yy, 16.0)), -ex)
-        q2 = ref.raymarch(Lg((20, yy * 1.6, 21.0)), -ex)
-        if q1 is not None and q2 is not None:
-            carve_polyline(p, ref, np.array([q1, q2]), 0.7, 0.4, k=0.5)
+    # cuff seam + stitching
+    p.torus(Lg((0, 0, 13.0)), 13.3, 0.6, M=M, op=SUB, k=0.2)
+    p.torus(Lg((0, 0, 6.5)), 13.2, 0.55, M=M, op=SUB, k=0.2)
+    for i in range(26):
+        th = 2 * math.pi * i / 26
+        pos = Lg((13.2 * math.cos(th), 13.2 * math.sin(th), 10.0))
+        nrm = ex * math.cos(th) + ey * math.sin(th)
+        p.ell(pos + nrm * 0.15, (0.55, 0.55, 0.55), op=SUB, k=0.1)
+    # thumb seam (front edge) and a panel seam along the back
+    pts = []
+    for z in np.linspace(14, 38, 9):
+        h = ref.raymarch(Lg((0, -40, z)), ey)
+        if h is not None:
+            pts.append(h)
+    if len(pts) > 2:
+        carve_tapered(p, ref, np.array(pts), [0.5] * len(pts), [0.0] + [0.45] * (len(pts) - 2) + [0.0], k=0.3)
+    pts = []
+    for z in np.linspace(14, 36, 9):
+        h = ref.raymarch(Lg((40, 0, z)), -ex)
+        if h is not None:
+            pts.append(h)
+    if len(pts) > 2:
+        carve_tapered(p, ref, np.array(pts), [0.5] * len(pts), [0.0] + [0.45] * (len(pts) - 2) + [0.0], k=0.3)
+    # few soft compression wrinkles near the thumb root and the knuckles (shallow dents)
+    for (lx, ly, lz, ra) in ((6.0, 12.5, 14.5, 3.0), (13.5, 3.0, 34.5, 3.2), (13.0, -6.0, 33.0, 3.0), (10.5, 12.0, 30.0, 2.6)):
+        c = Lg((lx, ly, lz))
+        h = ref.raymarch(c + (ex * lx + ey * ly) * 0.0 + (ex * 8 + ey * ly * 0.5) * 1.0, -(ex * 8 + ey * ly * 0.5))
+        if h is not None:
+            n = ref.grad(h[None])[0]
+            n /= np.linalg.norm(n)
+            p.ell(h + n * (ra - 0.4), (ra, ra * 0.55, ra * 1.7), M=frame(unit(np.cross(n, g)), hint=n), op=SUB, k=2.0)
     return p
 
 

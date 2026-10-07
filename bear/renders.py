@@ -6,7 +6,7 @@ from PIL import Image, ImageDraw
 from .render import render, label
 
 RGB = {
-    "brown": (0.69, 0.42, 0.20), "cream": (0.93, 0.80, 0.62), "black": (0.07, 0.07, 0.08),
+    "brown": (0.78, 0.40, 0.13), "cream": (0.93, 0.80, 0.62), "black": (0.07, 0.07, 0.08),
     "red": (0.80, 0.07, 0.08), "white": (0.95, 0.95, 0.95), "gray": (0.6, 0.6, 0.62),
 }
 GLOSS = {"brown": 0.12, "cream": 0.12, "black": 0.7, "red": 0.8, "white": 0.5, "gray": 0.3}
@@ -80,3 +80,37 @@ def make_exploded(parts, outdir, size=(1500, 1250), ss=2):
     im.save(os.path.join(outdir, "exploded_front.png"))
     # cut-away of joints: section view through x = 20 / 0 plane to show pins in sockets
     return im
+
+
+def make_glove_closeups(parts, outdir, size=(1100, 1100), ss=2):
+    items = items_from(parts)
+    im = render(items, (260, -480, 118), (50, -40, 84), fov_deg=14, size=size, ss=ss)
+    label(im, "GLOVE CLOSE-UP (3/4)")
+    im.save(os.path.join(outdir, "gloves_closeup.png"))
+    im = render(items, (0, -520, 100), (0, -40, 84), fov_deg=17, size=size, ss=ss)
+    label(im, "GLOVES CLOSE-UP (FRONT)")
+    im.save(os.path.join(outdir, "gloves_closeup_front.png"))
+    im = render(items, (620, -40, 90), (40, -40, 86), fov_deg=14, size=size, ss=ss)
+    label(im, "GLOVE CLOSE-UP (SIDE)")
+    im.save(os.path.join(outdir, "gloves_closeup_side.png"))
+
+
+# reference.png panels (x0, x1) of the top row (y 0..482)
+REF_PANELS = {0: (0, 362), 90: (362, 632), 180: (632, 930), 270: (930, 1180)}
+
+
+def make_comparisons(ref_path, outdir, views=(0, 90, 180, 270), h=900):
+    ref = Image.open(ref_path).convert("RGB")
+    for az in views:
+        x0, x1 = REF_PANELS[az]
+        r = ref.crop((x0, 0, x1, 482))
+        r = r.resize((int(r.size[0] * h / r.size[1]), h), Image.LANCZOS)
+        mine = Image.open(os.path.join(outdir, f"view_{az:03d}.png")).convert("RGB")
+        mine = mine.resize((int(mine.size[0] * h / mine.size[1]), h), Image.LANCZOS)
+        W = r.size[0] + mine.size[0]
+        sheet = Image.new("RGB", (W, h), (20, 20, 22))
+        sheet.paste(r, (0, 0))
+        sheet.paste(mine, (r.size[0], 0))
+        label(sheet, "REFERENCE", (10, h - 40), 24)
+        label(sheet, "THIS BUILD", (r.size[0] + 10, h - 40), 24)
+        sheet.save(os.path.join(outdir, f"compare_{az:03d}.png"))

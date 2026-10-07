@@ -26,7 +26,7 @@ def tangent_flow(N, direction):
 
 
 def make_bumps(prog, lo, hi, P, region_fn, flow_fn, seed=7, strength=1.0,
-               diam=(0.9, 1.4), height=(0.35, 0.60), elong=1.3, density=1.0, verbose=True):
+               diam=(0.9, 1.4), height=(0.35, 0.60), elong=1.3, density=1.0, verbose=True, tuft=None):
     rng = np.random.default_rng(seed)
     if strength <= 0:
         return None
@@ -46,11 +46,29 @@ def make_bumps(prog, lo, hi, P, region_fn, flow_fn, seed=7, strength=1.0,
     keep = w > 0.04
     pts, N, w, sz = pts[keep], N[keep], w[keep], sz[keep]
     R = 0.5 * rng.uniform(diam[0], diam[1], len(pts)) * sz
-    acc = poisson_select(pts, R, rng, fac=0.70)
-    pts, N, w, R = pts[acc], N[acc], w[acc], R[acc]
-    Hh = (height[0] + (height[1] - height[0]) * rng.uniform(0, 1, len(pts))) * strength * w
-    ok = Hh > 0.06
-    pts, N, w, R, Hh = pts[ok], N[ok], w[ok], R[ok], Hh[ok]
+    acc = poisson_select(pts, R, rng, fac=(0.80 if tuft else 0.70))
+    pts, N, w, R, sz = pts[acc], N[acc], w[acc], R[acc], sz[acc]
+    if tuft:
+        # each accepted seed becomes a short tuft: a few merged bumps strung along the fur flow
+        nmin, nmax, spread, rho_rng = tuft
+        k = rng.integers(nmin, nmax + 1, len(pts))
+        Fs = tangent_flow(N, flow_fn(pts))
+        Sd = np.cross(N, Fs)
+        idx = np.repeat(np.arange(len(pts)), k)
+        j = np.concatenate([np.arange(kk) for kk in k])
+        kk = k[idx]
+        along = (j - (kk - 1) / 2.0) * spread + rng.normal(0, 0.08, len(idx))
+        lat = rng.uniform(-0.30, 0.30, len(idx))
+        P2 = pts[idx] + Fs[idx] * along[:, None] + Sd[idx] * lat[:, None]
+        N2, w2, sz2 = N[idx], w[idx], sz[idx]
+        rho = rng.uniform(rho_rng[0], rho_rng[1], len(idx)) * sz2
+        Hh = rng.uniform(height[0], height[1], len(idx)) * strength * w2
+        ok = Hh > 0.06
+        pts, N, w, R, Hh = P2[ok], N2[ok], w2[ok], rho[ok], Hh[ok]
+    else:
+        Hh = (height[0] + (height[1] - height[0]) * rng.uniform(0, 1, len(pts))) * strength * w
+        ok = Hh > 0.06
+        pts, N, w, R, Hh = pts[ok], N[ok], w[ok], R[ok], Hh[ok]
     Rs = (R * R + Hh * Hh) / (2 * Hh)
     Rs = np.minimum(Rs, 3.0)
     BC = pts - N * (Rs - Hh)[:, None]

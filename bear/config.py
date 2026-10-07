@@ -37,9 +37,11 @@ class Params:
     TONGUE_LEN: float = 4.0          # wrist/leg overlap length
 
     # ---- fur
-    BUMP_DIAM: tuple = (0.9, 1.4)
-    BUMP_HEIGHT: tuple = (0.35, 0.60)
-    FUR_ELONGATION: float = 1.3
+    BUMP_DIAM: tuple = (0.9, 1.4)       # used for the muzzle velvet
+    TUFT_DIAM: tuple = (1.5, 2.5)       # plush tufts (body, legs): footprint width
+    TUFT: tuple = (3, 4, 0.62, (0.43, 0.55))   # bumps/tuft min,max, spacing along flow, bump radius range
+    BUMP_HEIGHT: tuple = (0.50, 0.70)
+    FUR_ELONGATION: float = 1.4
     FUR_NOISE_AMP: float = 0.15
     JOINT_SMOOTH_MM: float = 2.0
 

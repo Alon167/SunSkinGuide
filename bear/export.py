@@ -34,16 +34,22 @@ def ground(m):
 def pose_for(kind, m, J=None):
     """4x4 print pose for an assembled-coordinates part."""
     if kind == "body":
-        best = None
-        for d in range(-10, 11, 2):
-            T = rot_x(-90 + d)
-            a, _ = overhang_area(m, T)
-            if best is None or a < best[0] - 1e-6:
-                best = (a, d, T)
-        T = best[2]
+        # search the rotation about X: low overhang area AND pins close to horizontal
+        # (prong layers should run along the pin axis)
+        axes = [np.array(J[n].a, float) for n in ("torso", "gloveL", "gloveR")]
+        rows = []
+        for ang in range(40, 141, 5):
+            T = rot_x(-ang)
+            a_, _ = overhang_area(m, T)
+            tilt = max(math.degrees(math.asin(min(1.0, abs((T[:3, :3] @ ax)[2])))) for ax in axes)
+            rows.append((ang, a_, tilt))
+        # cost: 1 deg of pin tilt ~ 400 mm2 of (hidden-side) support area
+        best = min(rows, key=lambda r: r[1] + 400.0 * r[2])
+        T = rot_x(-best[0])
         mm = m.copy()
         mm.apply_transform(T)
-        return ground(mm) @ T, dict(tilt=best[1], overhang=best[0])
+        return ground(mm) @ T, dict(rotation_about_x=-best[0], overhang=best[1], max_pin_tilt_deg=best[2],
+                                    table=[(r[0], round(r[1]), round(r[2], 1)) for r in rows])
     if kind.startswith("glove"):
         g = J[kind].a
         T = trimesh.geometry.align_vectors(g, [0, 0, 1])

@@ -85,13 +85,13 @@ def build_body(P: Params, face, head_prog, info):
     def run():
         t = time.time()
         body = D.body_program(face)
-        lo, hi = (-70, -42, 78), (70, 36, 202)
+        lo, hi = (-74, -44, 78), (74, 38, 202)
         muz_prog = FC.muzzle_sdf(face["muz"], -50.0)
         muz_ell = Program()
         muz_ell.rows = muz_prog.rows[:1]
         bumps = make_bumps(body, lo, hi, None, RG.body_region(face, muz_ell, P.JOINT_SMOOTH_MM), RG.body_flow,
-                           seed=P.seed, strength=P.FUR_STRENGTH, diam=P.BUMP_DIAM, height=P.BUMP_HEIGHT,
-                           elong=P.FUR_ELONGATION)
+                           seed=P.seed, strength=P.FUR_STRENGTH, diam=P.TUFT_DIAM, height=P.BUMP_HEIGHT,
+                           elong=P.FUR_ELONGATION, tuft=P.TUFT)
         log("  body bumps", None if bumps is None else len(bumps["BC"]), f"{time.time()-t:.0f}s")
         m = mesh_program(body, lo, hi, vox(P, P.VOXEL_FUR), bumps=bumps,
                          noise_amp=P.FUR_NOISE_AMP * min(P.FUR_STRENGTH, 1.5) if bumps is not None else 0.0)
@@ -120,10 +120,11 @@ def build_leg(P, s):
     def run():
         t = time.time()
         prog = D.leg_program(s)
-        lo = (0, -34, -1) if s > 0 else (-46, -34, -1)
-        hi = (46, 21, 47) if s > 0 else (0, 21, 47)
+        lo = (0, -34, -1) if s > 0 else (-48, -34, -1)
+        hi = (48, 21, 47) if s > 0 else (0, 21, 47)
         bumps = make_bumps(prog, lo, hi, None, RG.leg_region(P.JOINT_SMOOTH_MM), RG.leg_flow, seed=P.seed + s,
-                           strength=P.FUR_STRENGTH, diam=P.BUMP_DIAM, height=P.BUMP_HEIGHT, elong=P.FUR_ELONGATION)
+                           strength=P.FUR_STRENGTH, diam=P.TUFT_DIAM, height=P.BUMP_HEIGHT, elong=P.FUR_ELONGATION,
+                           tuft=P.TUFT)
         m = mesh_program(prog, lo, hi, vox(P, P.VOXEL_FUR), bumps=bumps,
                          noise_amp=P.FUR_NOISE_AMP * min(P.FUR_STRENGTH, 1.5) if bumps is not None else 0.0)
         m = simplify(m, 0.03, [((0, 0, -1), 0.0), ((0, 0, 1), D.Z_HEM)])
@@ -144,7 +145,7 @@ def finish_leg(P, base, J, nm, clr):
 def build_shorts(P):
     def run():
         prog = D.shorts_program()
-        m = mesh_program(prog, (-44, -30, 43), (44, 30, 82), vox(P, 0.22))
+        m = mesh_program(prog, (-48, -32, 43), (48, 32, 82), vox(P, 0.22))
         m = simplify(m, 0.01, [((0, 0, 1), D.Z_WAIST), ((0, 0, -1), -D.Z_HEM)])
         log("  shorts", len(m.faces), m.is_watertight)
         return m
@@ -162,9 +163,10 @@ def finish_shorts(P, base, J, clr):
 def build_glove(P, s):
     def run():
         prog = D.glove_program(s)
-        lo = (44, -34, 47) if s > 0 else (-88, -34, 47)
-        hi = (88, 10, 98) if s > 0 else (-44, 10, 98)
-        m = mesh_program(prog, lo, hi, vox(P, 0.18))
+        W_, M_ = D.glove_frame(s)
+        c_ = W_ + M_[2] * 22.0
+        lo, hi = c_ - 34.0, c_ + 34.0
+        m = mesh_program(prog, lo, hi, vox(P, 0.2))
         S_, E_, W_, g_ = D.arm_points(s)
         m = simplify(m, 0.01, [(-g_, float(-g_ @ W_))])
         log(f"  glove{s}", len(m.faces), m.is_watertight)
