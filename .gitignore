@@ -1,0 +1,5 @@
+scratch/
+__pycache__/
+*.pyc
+output/clearance_*/
+output/assembled_preview.stl

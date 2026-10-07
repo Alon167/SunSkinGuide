@@ -1,0 +1,148 @@
+{
+ "params": {
+  "HEIGHT": 200.0,
+  "FUR_STRENGTH": 1.0,
+  "CLEARANCE": 0.15,
+  "WITH_BASE": true,
+  "BASE_DIAMETER": 96.0,
+  "BASE_THICK": 6.0,
+  "VOXEL_FUR": 0.25,
+  "VOXEL_SMOOTH": 0.3,
+  "VOXEL_FACE": 0.12,
+  "TORSO_PIN": [
+   12.0,
+   9.0
+  ],
+  "LEG_PIN": [
+   10.0,
+   7.0
+  ],
+  "GLOVE_PIN": [
+   8.0,
+   6.0
+  ],
+  "BASE_PIN": [
+   10.0,
+   6.0
+  ],
+  "BARB": 0.4,
+  "BARB_CHAMFER_DEG": 35.0,
+  "SLOT_W": 1.3,
+  "SLOT_FRAC": 0.7,
+  "PIN_FILLET": 1.0,
+  "BASE_PIN_FILLET": 1.5,
+  "SOCKET_EXTRA": 0.5,
+  "FLAT_DEPTH": 1.0,
+  "TONGUE_LEN": 4.0,
+  "BUMP_DIAM": [
+   0.9,
+   1.4
+  ],
+  "BUMP_HEIGHT": [
+   0.35,
+   0.6
+  ],
+  "FUR_ELONGATION": 1.3,
+  "FUR_NOISE_AMP": 0.15,
+  "JOINT_SMOOTH_MM": 2.0,
+  "FACE_CLEARANCE": 0.1,
+  "MUZZLE_RECESS": 1.0,
+  "NOSE_RECESS": 0.8,
+  "EYE_RECESS": 1.5,
+  "seed": 7,
+  "preview": false
+ },
+ "base_diameter": 96.0,
+ "print_notes": {
+  "body": {
+   "tilt": 2,
+   "overhang": 7220.410533408844,
+   "overhang_mm2": 7220.4,
+   "bed_contact_mm2": 0.2
+  },
+  "gloveL": {
+   "overhang_mm2": 298.7,
+   "bed_contact_mm2": 273.2
+  },
+  "gloveR": {
+   "overhang_mm2": 297.6,
+   "bed_contact_mm2": 272.9
+  },
+  "shorts": {
+   "overhang_mm2": 1346.8,
+   "bed_contact_mm2": 1903.3
+  },
+  "legL": {
+   "overhang_mm2": 403.3,
+   "bed_contact_mm2": 811.3
+  },
+  "legR": {
+   "overhang_mm2": 388.9,
+   "bed_contact_mm2": 814.3
+  },
+  "base": {
+   "overhang_mm2": 17.2,
+   "bed_contact_mm2": 7115.2
+  }
+ },
+ "figure_height_mm": 200.0301055908203,
+ "figure_bounds": [
+  [
+   -83.02,
+   -46.42,
+   0.0
+  ],
+  [
+   83.02,
+   33.32,
+   200.03
+  ]
+ ],
+ "validation": {
+  "interference_mm3": {
+   "body~shorts": 2.5683,
+   "shorts~legL": -0.0,
+   "shorts~legR": -0.0,
+   "body~gloveL": 0.0001,
+   "body~gloveR": 0.0001,
+   "gloveL~shorts": 0.0,
+   "gloveR~shorts": 0.0,
+   "legL~legR": 0.0,
+   "gloveL~legL": 0.0,
+   "gloveR~legR": 0.0,
+   "base~legL": 0.0,
+   "base~legR": 0.0
+  },
+  "pin_vs_socket_interference_mm3": {
+   "torso": 0.0,
+   "legL": 0.0,
+   "legR": 0.0,
+   "gloveL": 0.0,
+   "gloveR": 0.0,
+   "footL": 0.0,
+   "footR": 0.0
+  },
+  "centre_of_mass_xyz": [
+   -0.0,
+   -2.35,
+   104.5
+  ],
+  "com_inside_support_polygon": true,
+  "com_margin_to_edge_mm": 15.85,
+  "watertight": {
+   "body": true,
+   "legL": true,
+   "gloveL": true,
+   "legR": true,
+   "gloveR": true,
+   "shorts": true,
+   "base": true,
+   "eyeL": true,
+   "hlL": true,
+   "eyeR": true,
+   "hlR": true,
+   "muzzle": true,
+   "nose": true
+  }
+ }
+}
