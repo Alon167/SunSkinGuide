@@ -36,7 +36,7 @@ face = [("02_muzzle_cream", cm("02_muzzle_cream"), "cream", dict(lh="0.08")),
 face += [(f"04_eye_black_{i+1}" + ("_spare" if i >= 2 else ""), cm("04_eye_black"), "black", dict(lh="0.08")) for i in range(4)]
 face += [(f"05_highlight_white_{i+1}" + ("_spare" if i >= 2 else ""), cm("05_highlight_white"), "white", dict(lh="0.08")) for i in range(6)]
 plates.append(("02 Face parts (cream/black/white)", face))
-plates.append(("03 Snap test (any colour)", [("test_snap", load(f"{OUT}/test_snap.stl", True), "brown", {})]))
+plates.append(("03 Snap test (any colour)", [("test_snap", load(f"{OUT}/test_snap.stl", True), "brown", dict(lh="0.2", nosupport=True))]))
 for c in clrs:
     d = f"{OUT}/clearance_{c}"
     plates.append((f"Legs clr {c} (brown)", [(f"09_leg_left_brown_c{c}", load(f"{d}/09_leg_left_brown.stl"), "brown", {}),
@@ -48,6 +48,16 @@ for c in clrs:
     plates.append((f"Gloves clr {c} (red)", [(f"06_glove_left_red_c{c}", load(f"{d}/06_glove_left_red.stl"), "red", {}),
                                              (f"07_glove_right_red_c{c}", load(f"{d}/07_glove_right_red.stl"), "red", {})]))
 
+# print settings requested by the user (applied per object AND globally)
+SETTINGS = {
+    "sparse_infill_density": "5%",
+    "sparse_infill_pattern": "archimedeanchords",
+    "infill_anchor": "400%",
+    "infill_anchor_max": "20",
+    "wall_loops": "3",
+    "top_shell_layers": "5",
+    "bottom_shell_layers": "4",
+}
 BED = 256.0
 cols = max(1, math.ceil(math.sqrt(len(plates))))
 stride = BED * 1.2
@@ -88,8 +98,12 @@ for o in objs:
     cfg.append(f'  <object id="{o["id"]}">')
     cfg.append(f'    <metadata key="name" value="{o["name"]}"/>')
     cfg.append(f'    <metadata key="extruder" value="{SLOT[o["col"]]}"/>')
+    for k_, v_ in SETTINGS.items():              # user print settings, applied to EVERY object
+        cfg.append(f'    <metadata key="{k_}" value="{v_}"/>')
     if o["extra"].get("lh"):
         cfg.append(f'    <metadata key="layer_height" value="{o["extra"]["lh"]}"/>')
+    if o["extra"].get("nosupport"):
+        cfg.append('    <metadata key="enable_support" value="0"/>')
     if o["extra"].get("support"):
         cfg.append('    <metadata key="enable_support" value="1"/>')
         cfg.append('    <metadata key="support_type" value="tree(auto)"/>')
@@ -117,6 +131,7 @@ proj = {
     "nozzle_diameter": ["0.4"], "layer_height": "0.12",
     "filament_colour": fcol, "filament_type": ["PLA"] * 5,
     "filament_settings_id": ["Bambu PLA Basic"] * 5,
+    **SETTINGS,
     "enable_prime_tower": "1", "different_settings_to_system": [""] * 3,
 }
 ct = ('<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
