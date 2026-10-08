@@ -182,4 +182,5 @@ def build_test_snap(P, clearances=(0.10, 0.15, 0.20, 0.25)):
     lab = _text_man("H", 4.0, 0.6)
     hb = hb + lab.translate((2.0, 58.0, 8 - 0.01))
     allm = block + plate + hb
+    allm = allm ^ box(-5, 400, -5, 400, 0.0, 60)      # nothing may go below the bed (pin stubs did, by 0.6 mm)
     return to_tri(allm)
